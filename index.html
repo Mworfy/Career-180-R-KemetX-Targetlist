@@ -245,10 +245,10 @@
 
   <div class="team-row" id="teamRow"></div>
   <div class="panel" id="panel">
-    <div class="empty"><div class="big">Nothing loaded yet</div>Set your Google Sheet ID and API key, then refresh above.</div>
+    <div class="empty"><div class="big">Nothing loaded yet</div>Configure Vercel env vars and refresh above.</div>
   </div>
 
-  <p class="footnote">Sheet must be shared as “Anyone with the link can view”. Partners are stored locally in this browser.</p>
+  <p class="footnote">Sheet credentials stay on the server (Vercel env). Partners are stored locally in this browser.</p>
 </div>
 
 <script>
@@ -260,49 +260,21 @@ const EMPLOYEES = [
 const STORAGE_KEY = 'sponsorship-upload';
 const PARTNERS_KEY = 'sponsorship-partners';
 
-/** Live sheet: enable Sheets API + create an API key in Google Cloud Console. */
+/** Client-side sync options (credentials live in Vercel env vars). */
 const GOOGLE_SHEETS_CONFIG = {
-  spreadsheetId: '1d3H-gq4b-Ip9EEixRjkx8OD6f5cGX3YdQTcTsMKRYbs',
-  apiKey: 'AIzaSyBgNhIB4Tm2XqYpDmr00IHj8MBxzrmKets',
-  /** Leave empty to load every tab; set to one tab name to limit sync to that tab only. */
+  /** Optional tab filter; overrides GOOGLE_SHEETS_TAB_FILTER when set via ?range= */
   range: '',
   autoRefreshMinutes: 5,
 };
 
+let sheetBackendConfigured = null;
+
 function sheetsConfigFromUrl(){
   const params = new URLSearchParams(window.location.search);
-  const id = params.get('sheet') || params.get('spreadsheetId');
-  const key = params.get('key') || params.get('apiKey');
-  if(id) GOOGLE_SHEETS_CONFIG.spreadsheetId = id;
-  if(key) GOOGLE_SHEETS_CONFIG.apiKey = key;
   const range = params.get('range');
   if(range) GOOGLE_SHEETS_CONFIG.range = range;
 }
 sheetsConfigFromUrl();
-
-function quoteSheetTitle(title){
-  if(/^[\w]+$/.test(title)) return title;
-  return `'${String(title).replace(/'/g, "''")}'`;
-}
-
-function encodeSheetsRange(range){
-  if(!range.includes('!')) return encodeURIComponent(range);
-  const bang = range.indexOf('!');
-  const sheet = range.slice(0, bang);
-  const cells = range.slice(bang + 1);
-  return encodeURIComponent(`${quoteSheetTitle(sheet)}!${cells}`);
-}
-
-function columnIndexToA1(colOneBased){
-  let n = colOneBased;
-  let s = '';
-  while(n > 0){
-    const rem = (n - 1) % 26;
-    s = String.fromCharCode(65 + rem) + s;
-    n = Math.floor((n - 1) / 26);
-  }
-  return s;
-}
 
 function normalizeSheetRows(values, columnCount){
   const width = Math.max(
@@ -427,81 +399,41 @@ let sheetFetchInFlight = false;
 
 function renderSheetSetupHint(){
   const hint = document.getElementById('sheetSetupHint');
-  const { spreadsheetId, apiKey } = GOOGLE_SHEETS_CONFIG;
-  if(spreadsheetId && apiKey){
+  if(sheetBackendConfigured !== false){
     hint.style.display = 'none';
     return;
   }
   hint.style.display = 'block';
   hint.innerHTML = [
-    'Configure live sync: set <code>GOOGLE_SHEETS_CONFIG</code> in index.html, or open this page with ',
-    '<code>?sheet=SPREADSHEET_ID&amp;key=API_KEY</code>. ',
-    'Share the sheet publicly (viewer) and restrict the API key to Sheets + your site URL in Google Cloud.',
+    'Add <code>GOOGLE_SHEETS_API_KEY</code> and <code>GOOGLE_SPREADSHEET_ID</code> in Vercel → Settings → Environment Variables, then redeploy. ',
+    'Local dev: set the same vars in <code>.env.local</code> and run <code>vercel dev</code>.',
   ].join('');
 }
 
-async function sheetsApiGet(path, apiKey){
-  const sep = path.includes('?') ? '&' : '?';
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${path}${sep}key=${encodeURIComponent(apiKey)}`;
+async function fetchSheetPayloadFromApi(){
+  const range = (GOOGLE_SHEETS_CONFIG.range || '').trim();
+  const url = '/api/sheets' + (range ? `?range=${encodeURIComponent(range)}` : '');
   const res = await fetch(url);
   const body = await res.json().catch(() => ({}));
+  if(body.configured === false) sheetBackendConfigured = false;
+  else if(body.configured === true) sheetBackendConfigured = true;
   if(!res.ok){
-    const msg = body.error?.message || res.statusText || 'Request failed';
-    throw new Error(msg);
+    throw new Error(body.error || res.statusText || 'Request failed');
   }
+  sheetBackendConfigured = true;
   return body;
 }
 
-async function fetchSpreadsheetTabs(spreadsheetId, apiKey, tabFilter){
-  const body = await sheetsApiGet(
-    `${encodeURIComponent(spreadsheetId)}?fields=sheets(properties(title,gridProperties(rowCount,columnCount)))`,
-    apiKey,
-  );
-  let tabs = (body.sheets || []).map(s => s.properties).filter(Boolean);
-  const filter = (tabFilter || '').trim();
-  if(filter){
-    const want = filter.toLowerCase();
-    tabs = tabs.filter(t => t.title.toLowerCase() === want);
-    if(!tabs.length) throw new Error(`No tab named "${filter}" in this spreadsheet.`);
-  }
-  return tabs;
-}
-
-async function fetchTabGrid(spreadsheetId, apiKey, tab){
-  const rows = Math.max(1, tab.gridProperties?.rowCount || 1);
-  const cols = Math.max(1, tab.gridProperties?.columnCount || 1);
-  const lastCol = columnIndexToA1(cols);
-  const range = `${quoteSheetTitle(tab.title)}!A1:${lastCol}${rows}`;
-  const rangeParam = encodeSheetsRange(range);
-  const body = await sheetsApiGet(
-    `${encodeURIComponent(spreadsheetId)}/values/${rangeParam}?majorDimension=ROWS`,
-    apiKey,
-  );
-  const values = body.values || [];
-  if(!values.length) return null;
-  return normalizeSheetRows(values, cols);
-}
-
 async function fetchFromGoogleSheet(){
-  const { spreadsheetId, apiKey, range } = GOOGLE_SHEETS_CONFIG;
-  if(!spreadsheetId || !apiKey){
-    throw new Error('Missing spreadsheet ID or API key.');
-  }
-
-  const tabs = await fetchSpreadsheetTabs(spreadsheetId, apiKey, range);
+  const body = await fetchSheetPayloadFromApi();
+  const tabPayloads = body.tabs || [];
   let merged = null;
   let tabsUsed = 0;
-  const skipped = [];
+  const skipped = (body.skipped || []).map(s => `${s.title} (${s.message})`);
 
-  for(const tab of tabs){
-    let grid;
-    try{
-      grid = await fetchTabGrid(spreadsheetId, apiKey, tab);
-    }catch(err){
-      skipped.push(`${tab.title} (${err.message})`);
-      continue;
-    }
-    if(!grid) continue;
+  for(const tab of tabPayloads){
+    const grid = normalizeSheetRows(tab.values || [], tab.columnCount);
+    if(!grid.length) continue;
     if(!hasCallLedgerLayout(grid)) continue;
     try{
       const parsed = parseSheetRows(grid);
@@ -518,7 +450,7 @@ async function fetchFromGoogleSheet(){
   }
 
   merged.tabsUsed = tabsUsed;
-  merged.tabsTotal = tabs.length;
+  merged.tabsTotal = body.tabsTotal != null ? body.tabsTotal : tabPayloads.length;
   merged.skippedTabs = skipped;
   return merged;
 }
@@ -527,14 +459,8 @@ async function refreshFromGoogleSheet({ silent } = {}){
   if(sheetFetchInFlight) return;
   const meta = document.getElementById('uploadMeta');
   const btn = document.getElementById('refreshBtn');
-  const { spreadsheetId, apiKey } = GOOGLE_SHEETS_CONFIG;
 
   renderSheetSetupHint();
-  if(!spreadsheetId || !apiKey){
-    meta.textContent = 'Sheet not configured';
-    meta.classList.remove('error');
-    return;
-  }
 
   sheetFetchInFlight = true;
   btn.disabled = true;
@@ -547,7 +473,6 @@ async function refreshFromGoogleSheet({ silent } = {}){
       uploadedAt: Date.now(),
       filename: 'Google Sheet (live)',
       source: 'google-sheets',
-      spreadsheetId,
       dates: parsed.dates,
       byEmployee: parsed.byEmployee,
       tabsUsed: parsed.tabsUsed,
@@ -560,6 +485,7 @@ async function refreshFromGoogleSheet({ silent } = {}){
     renderTeamOverview();
     renderTeamRow();
     renderPanel();
+    renderSheetSetupHint();
   }catch(err){
     meta.textContent = 'Sync failed: ' + err.message;
     meta.classList.add('error');
@@ -574,7 +500,6 @@ function scheduleSheetAutoRefresh(){
   if(sheetRefreshTimer){ clearInterval(sheetRefreshTimer); sheetRefreshTimer = null; }
   const mins = GOOGLE_SHEETS_CONFIG.autoRefreshMinutes;
   if(!mins || mins <= 0) return;
-  if(!GOOGLE_SHEETS_CONFIG.spreadsheetId || !GOOGLE_SHEETS_CONFIG.apiKey) return;
   sheetRefreshTimer = setInterval(()=> refreshFromGoogleSheet({ silent:true }), mins * 60 * 1000);
 }
 
@@ -702,11 +627,9 @@ function renderMoneyBanner(){
 function renderUploadMeta(){
   const meta = document.getElementById('uploadMeta');
   if(!dataset){
-    if(GOOGLE_SHEETS_CONFIG.spreadsheetId && GOOGLE_SHEETS_CONFIG.apiKey){
-      meta.textContent = 'Waiting for first sync…';
-    }else{
-      meta.textContent = 'Sheet not configured';
-    }
+    meta.textContent = sheetBackendConfigured === false
+      ? 'Sheet API not configured on server'
+      : 'Waiting for first sync…';
     meta.classList.remove('error');
     return;
   }
@@ -946,9 +869,7 @@ document.getElementById('refreshBtn').addEventListener('click', ()=> refreshFrom
   renderTeamRow();
   renderPanel();
   scheduleSheetAutoRefresh();
-  if(GOOGLE_SHEETS_CONFIG.spreadsheetId && GOOGLE_SHEETS_CONFIG.apiKey){
-    await refreshFromGoogleSheet({ silent:true });
-  }
+  await refreshFromGoogleSheet({ silent:true });
 })();
 </script>
 </body>
