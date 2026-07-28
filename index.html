@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sponsorship Call Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;0,700;1,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#1B2430; --surface:#232E3D; --surface-2:#2B384A; --line:#37455A;
+    --text:#F2EFE9; --text-dim:#9CA9BD;
+    --gold:#D4A94F; --gold-dim:#8A733A;
+    --teal:#4FA8A0; --brick:#C1554D;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--bg); color:var(--text); font-family:'IBM Plex Sans',sans-serif; -webkit-font-smoothing:antialiased; padding:28px 16px 60px; }
+  .wrap{max-width:960px; margin:0 auto;}
+  .eyebrow{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); margin:0 0 6px; }
+  h1{ font-family:'Fraunces',serif; font-weight:600; font-size:clamp(26px,5vw,38px); margin:0 0 4px; letter-spacing:-0.01em; }
+  .sub{ color:var(--text-dim); font-size:14px; margin:0 0 20px; }
+
+  .upload-bar{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    background:var(--surface); border:1px solid var(--line); border-radius:14px;
+    padding:14px 18px; margin-bottom:22px;
+  }
+  .upload-btn{
+    background:var(--gold); color:#1B2430; border:none; border-radius:9px;
+    padding:9px 16px; font-weight:600; font-size:13px; cursor:pointer;
+    font-family:'IBM Plex Sans',sans-serif;
+  }
+  .upload-btn:hover{ background:#e0b95c; }
+  .upload-btn:disabled{ opacity:.55; cursor:wait; }
+  .upload-meta{ font-size:12px; color:var(--text-dim); font-family:'IBM Plex Mono',monospace; }
+  .upload-meta.error{ color:var(--brick); }
+  #sheetSetupHint code{ background:var(--surface-2); padding:2px 6px; border-radius:4px; font-size:11px; }
+
+  .team-row{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:24px; }
+  @media (max-width:640px){ .team-row{grid-template-columns:1fr;} }
+  .chip{
+    background:var(--surface); border:1px solid var(--line); border-radius:14px;
+    padding:14px 16px; cursor:pointer; text-align:left; transition:border-color .15s,transform .15s;
+  }
+  .chip:hover{ transform:translateY(-1px); }
+  .chip.active{ border-color:var(--gold); }
+  .chip .avatar{ width:34px;height:34px;border-radius:50%; display:inline-flex;align-items:center;justify-content:center; font-family:'Fraunces',serif; font-weight:600; font-size:15px; margin-bottom:10px; }
+  .chip .name{ font-weight:600; font-size:15px; }
+  .chip .stat-row{ display:flex; justify-content:space-between; margin-top:8px; }
+  .chip .stat-num{ font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:600; }
+  .chip .stat-label{ font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; }
+
+  .panel{ background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:22px; }
+  .empty{ text-align:center; padding:50px 20px; color:var(--text-dim); }
+  .empty .big{ font-family:'Fraunces',serif; font-size:20px; color:var(--text); margin-bottom:8px; }
+
+  .date-tabs{ display:flex; gap:6px; overflow-x:auto; padding-bottom:6px; margin-bottom:20px; }
+  .date-tabs button{
+    flex:none; background:var(--surface-2); border:1px solid var(--line); color:var(--text-dim);
+    border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; font-family:'IBM Plex Mono',monospace;
+    white-space:nowrap;
+  }
+  .date-tabs button.active{ background:var(--gold); color:#1B2430; border-color:var(--gold); font-weight:600; }
+
+  .who-total{ font-family:'Fraunces',serif; font-weight:600; font-size:20px; margin-bottom:18px; }
+  .section-title{ font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--text-dim); margin-bottom:12px; }
+
+  .status-bars{ display:flex; flex-direction:column; gap:8px; margin-bottom:28px; }
+  .status-bar-row{ display:flex; align-items:center; gap:10px; }
+  .status-bar-row .label{ width:150px; flex:none; font-size:12px; color:var(--text-dim); text-align:right; }
+  .status-bar-row .track{ flex:1; background:var(--surface-2); border-radius:6px; height:22px; position:relative; overflow:hidden; }
+  .status-bar-row .fill{ height:100%; border-radius:6px; display:flex; align-items:center; }
+  .status-bar-row .count{ font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; width:28px; text-align:left; margin-left:4px; }
+
+  .trend{ display:flex; align-items:flex-end; gap:6px; height:80px; padding-top:10px; margin-bottom:28px; overflow-x:auto; }
+  .trend-col{ flex:1; min-width:22px; display:flex; flex-direction:column; align-items:center; gap:6px; height:100%; justify-content:flex-end; }
+  .trend-bar{ width:100%; max-width:22px; background:var(--gold-dim); border-radius:4px 4px 0 0; min-height:3px; }
+  .trend-bar.sel{ background:var(--gold); }
+  .trend-day{ font-size:9px; color:var(--text-dim); font-family:'IBM Plex Mono',monospace; writing-mode:vertical-rl; text-orientation:mixed; }
+
+  table.totals{ width:100%; border-collapse:collapse; font-size:13px; }
+  table.totals th{ text-align:left; color:var(--text-dim); font-size:11px; text-transform:uppercase; letter-spacing:.06em; padding:6px 8px; border-bottom:1px solid var(--line); }
+  table.totals td{ padding:8px; border-bottom:1px solid var(--line); font-family:'IBM Plex Mono',monospace; }
+  table.totals tr:last-child td{ border-bottom:none; }
+
+  .footnote{ text-align:center; color:var(--text-dim); font-size:11px; margin-top:22px; font-family:'IBM Plex Mono',monospace; }
+
+  .money-banner{
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
+    background:linear-gradient(135deg, var(--surface-2), var(--surface));
+    border:1px solid var(--gold-dim); border-radius:14px; padding:16px 20px; margin-bottom:20px;
+  }
+  .money-banner .mb-label{ font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--text-dim); }
+  .money-banner .mb-total{ font-family:'Fraunces',serif; font-weight:700; font-size:30px; color:var(--gold); }
+  .money-breakdown{ display:flex; gap:18px; flex-wrap:wrap; }
+  .money-breakdown span{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text-dim); }
+  .money-breakdown b{ color:var(--text); }
+
+  .money-section{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    background:var(--surface-2); border:1px solid var(--line); border-radius:12px;
+    padding:14px 16px; margin-bottom:28px;
+  }
+  .money-section .m-label{ font-size:12px; color:var(--text-dim); margin-right:auto; }
+  .money-section input[type=number]{
+    background:var(--surface); border:1px solid var(--line); color:var(--text);
+    border-radius:8px; padding:8px 10px; font-family:'IBM Plex Mono',monospace; font-size:14px; width:140px;
+  }
+  .money-section .save-btn{
+    background:var(--gold); color:#1B2430; border:none; border-radius:8px;
+    padding:8px 14px; font-weight:600; font-size:12px; cursor:pointer;
+  }
+  .money-section .save-btn:hover{ background:#e0b95c; }
+  .money-section .saved-note{ font-size:11px; color:var(--teal); font-family:'IBM Plex Mono',monospace; opacity:0; transition:opacity .3s; }
+  .money-section .saved-note.show{ opacity:1; }
+
+  .partners-section{
+    background:var(--surface); border:1px solid var(--line); border-radius:18px;
+    padding:22px; margin-bottom:24px;
+  }
+  .partners-header{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:8px; }
+  .partners-header h2{ font-family:'Fraunces',serif; font-weight:600; font-size:20px; margin:0; }
+  .partners-summary{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text-dim); }
+  .partners-summary b{ color:var(--gold); }
+
+  .add-partner-form{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; }
+  .add-partner-form input[type=text], .add-partner-form input[type=number], .add-partner-form select{
+    background:var(--surface-2); border:1px solid var(--line); color:var(--text);
+    border-radius:8px; padding:9px 12px; font-family:'IBM Plex Sans',sans-serif; font-size:13px;
+  }
+  .add-partner-form input[type=text]{ flex:1; min-width:160px; }
+  .add-partner-form input[type=number]{ width:120px; font-family:'IBM Plex Mono',monospace; }
+  .add-partner-form select{ width:130px; }
+  .add-partner-form button{
+    background:var(--gold); color:#1B2430; border:none; border-radius:8px;
+    padding:9px 16px; font-weight:600; font-size:13px; cursor:pointer;
+  }
+  .add-partner-form button:hover{ background:#e0b95c; }
+
+  .partner-list{ display:flex; flex-direction:column; gap:8px; }
+  .partner-row{
+    display:flex; align-items:center; gap:12px; background:var(--surface-2); border:1px solid var(--line);
+    border-radius:10px; padding:10px 14px;
+  }
+  .partner-row .p-name{ font-weight:600; font-size:14px; flex:1; }
+  .partner-row .p-emp{ font-size:11px; padding:3px 9px; border-radius:20px; font-family:'IBM Plex Mono',monospace; }
+  .partner-row .p-amount{ font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--gold); width:110px; text-align:right; }
+  .partner-row .p-remove{
+    background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:16px; line-height:1;
+    width:24px; height:24px; border-radius:6px;
+  }
+  .partner-row .p-remove:hover{ background:var(--brick); color:var(--text); }
+  .partners-empty{ color:var(--text-dim); font-size:13px; padding:10px 0; }
+
+  .p-tier{
+    font-size:10px; font-weight:700; padding:3px 10px; border-radius:20px;
+    font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:.06em;
+    border:1px solid transparent;
+  }
+  .p-tier.tier-diamond{ background:#8FE3F022; color:#8FE3F0; border-color:#8FE3F066; }
+  .p-tier.tier-platinum{ background:#D6DBE322; color:#D6DBE3; border-color:#D6DBE366; }
+  .p-tier.tier-gold{ background:#D4A94F22; color:#D4A94F; border-color:#D4A94F66; }
+  .p-tier.tier-silver{ background:#A8AFBD22; color:#A8AFBD; border-color:#A8AFBD66; }
+
+  .team-hero{
+    position:relative;
+    background: radial-gradient(circle at 15% 20%, rgba(212,169,79,0.16), transparent 55%),
+                radial-gradient(circle at 85% 80%, rgba(79,168,160,0.18), transparent 55%),
+                #131C28;
+    border:1px solid var(--gold-dim);
+    border-radius:22px;
+    padding:26px 26px 22px;
+    margin-bottom:26px;
+    overflow:hidden;
+  }
+  .team-hero-top{ display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:20px; }
+  .team-hero-eyebrow{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--gold); margin-bottom:6px; }
+  .team-hero-number{ font-family:'Fraunces',serif; font-weight:700; font-size:44px; line-height:1; color:var(--text); }
+  .team-hero-number span{ font-size:16px; color:var(--text-dim); font-family:'IBM Plex Mono',monospace; font-weight:500; margin-left:8px; }
+  .team-hero-today{ text-align:right; }
+  .team-hero-today .n{ font-family:'IBM Plex Mono',monospace; font-size:26px; font-weight:600; color:var(--teal); }
+  .team-hero-today .l{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; }
+
+  .pill-tabs{ display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; margin-bottom:22px; }
+  .pill-tabs button{
+    flex:none; background:rgba(255,255,255,0.04); border:1px solid var(--line); color:var(--text-dim);
+    border-radius:20px; padding:6px 14px; font-size:11px; cursor:pointer; font-family:'IBM Plex Mono',monospace;
+    white-space:nowrap; transition:all .15s ease;
+  }
+  .pill-tabs button.active{ background:var(--gold); color:#131C28; border-color:var(--gold); font-weight:600; }
+  .pill-tabs button:disabled{ opacity:1; cursor:default; color:var(--text-dim); }
+
+  .status-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(130px,1fr)); gap:10px; margin-bottom:24px; }
+  .status-card{
+    background:rgba(255,255,255,0.035); border:1px solid var(--line); border-radius:14px;
+    padding:14px; border-top:3px solid var(--dot-color, var(--teal));
+  }
+  .status-card .sc-count{ font-family:'IBM Plex Mono',monospace; font-size:26px; font-weight:600; color:var(--text); }
+  .status-card .sc-label{ font-size:11px; color:var(--text-dim); margin-top:4px; }
+
+  .spark-wrap{ background:rgba(255,255,255,0.03); border:1px solid var(--line); border-radius:14px; padding:16px 18px 8px; }
+  .spark-wrap svg{ width:100%; height:90px; display:block; }
+  .spark-labels{ display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--text-dim); margin-top:6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Sponsorship desk</p>
+  <h1>Call Ledger</h1>
+  <p class="sub">Call data loads live from your Google Sheet — statuses are read from the date columns.</p>
+
+  <div class="upload-bar">
+    <button class="upload-btn" id="refreshBtn">Refresh from Sheet</button>
+    <span class="upload-meta" id="uploadMeta">Connecting…</span>
+  </div>
+  <p class="upload-meta" id="sheetSetupHint" style="margin:-14px 0 22px; line-height:1.5; display:none;"></p>
+
+  <div class="money-banner" id="moneyBanner"></div>
+
+  <div class="partners-section">
+    <div class="partners-header">
+      <h2>Confirmed Partners</h2>
+      <div class="partners-summary" id="partnersSummary"></div>
+    </div>
+    <div class="add-partner-form">
+      <input type="text" id="partnerNameInput" placeholder="Partner / company name">
+      <select id="partnerEmpSelect">
+        <option value="roba">Roba</option>
+        <option value="sohaila">Sohaila</option>
+        <option value="nada">Nada</option>
+      </select>
+      <input type="number" id="partnerAmountInput" placeholder="Amount (EGP)" min="0" step="1">
+      <select id="partnerTierSelect">
+        <option value="Diamond">Diamond</option>
+        <option value="Platinum">Platinum</option>
+        <option value="Gold">Gold</option>
+        <option value="Silver">Silver</option>
+      </select>
+      <button id="partnerAddBtn">Add partner</button>
+    </div>
+    <div class="partner-list" id="partnerList"></div>
+  </div>
+
+  <div class="team-hero" id="teamOverviewPanel"></div>
+
+  <div class="team-row" id="teamRow"></div>
+  <div class="panel" id="panel">
+    <div class="empty"><div class="big">Nothing loaded yet</div>Set your Google Sheet ID and API key, then refresh above.</div>
+  </div>
+
+  <p class="footnote">Sheet must be shared as “Anyone with the link can view”. Partners are stored locally in this browser.</p>
+</div>
+
+<script>
+const EMPLOYEES = [
+  { id:'roba', label:'Roba', color:'#4FA8A0' },
+  { id:'sohaila', label:'Sohaila', color:'#D4A94F' },
+  { id:'nada', label:'Nada', color:'#C1554D' },
+];
+const STORAGE_KEY = 'sponsorship-upload';
+const PARTNERS_KEY = 'sponsorship-partners';
+
+/** Live sheet: enable Sheets API + create an API key in Google Cloud Console. */
+const GOOGLE_SHEETS_CONFIG = {
+  spreadsheetId: '1d3H-gq4b-Ip9EEixRjkx8OD6f5cGX3YdQTcTsMKRYbs',
+  apiKey: 'AIzaSyBgNhIB4Tm2XqYpDmr00IHj8MBxzrmKets',
+  /** Leave empty to load every tab; set to one tab name to limit sync to that tab only. */
+  range: '',
+  autoRefreshMinutes: 5,
+};
+
+function sheetsConfigFromUrl(){
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('sheet') || params.get('spreadsheetId');
+  const key = params.get('key') || params.get('apiKey');
+  if(id) GOOGLE_SHEETS_CONFIG.spreadsheetId = id;
+  if(key) GOOGLE_SHEETS_CONFIG.apiKey = key;
+  const range = params.get('range');
+  if(range) GOOGLE_SHEETS_CONFIG.range = range;
+}
+sheetsConfigFromUrl();
+
+function quoteSheetTitle(title){
+  if(/^[\w]+$/.test(title)) return title;
+  return `'${String(title).replace(/'/g, "''")}'`;
+}
+
+function encodeSheetsRange(range){
+  if(!range.includes('!')) return encodeURIComponent(range);
+  const bang = range.indexOf('!');
+  const sheet = range.slice(0, bang);
+  const cells = range.slice(bang + 1);
+  return encodeURIComponent(`${quoteSheetTitle(sheet)}!${cells}`);
+}
+
+function columnIndexToA1(colOneBased){
+  let n = colOneBased;
+  let s = '';
+  while(n > 0){
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+function normalizeSheetRows(values, columnCount){
+  const width = Math.max(
+    columnCount || 0,
+    ...values.map(r => (r && r.length) || 0),
+  );
+  return values.map(r => {
+    const row = Array.isArray(r) ? [...r] : [];
+    while(row.length < width) row.push('');
+    return row;
+  });
+}
+
+function mergeParsedDatasets(into, add){
+  if(!into) return add;
+  const dates = [...into.dates];
+  add.dates.forEach(d => {
+    if(!dates.includes(d)) dates.push(d);
+  });
+  EMPLOYEES.forEach(e => {
+    dates.forEach(d => {
+      if(!into.byEmployee[e.id].byDate[d]) into.byEmployee[e.id].byDate[d] = {};
+    });
+    add.dates.forEach(d => {
+      const src = add.byEmployee[e.id].byDate[d] || {};
+      const dst = into.byEmployee[e.id].byDate[d];
+      Object.entries(src).forEach(([k, v]) => {
+        dst[k] = (dst[k] || 0) + v;
+      });
+    });
+  });
+  into.dates = dates;
+  into.companyColFound = into.companyColFound || add.companyColFound;
+  return into;
+}
+
+function hasCallLedgerLayout(rows){
+  for(let i=0; i<Math.min(rows.length, 10); i++){
+    const row = (rows[i] || []).map(stripCell);
+    const mgr = row.findIndex(c => c.toLowerCase() === 'account manager');
+    if(mgr === -1) continue;
+    const status = row.findIndex(c => c.toLowerCase() === 'status');
+    return status !== -1;
+  }
+  return false;
+}
+
+let dataset = null;
+let partners = []; // { id, name, employeeId, amount, tier, addedAt }
+let activeEmployee = 'roba';
+let activeDateIdx = 0;
+let teamDateIdx = 0;
+
+function stripCell(v){
+  if(v==null) return '';
+  return String(v).replace(/[\u200B-\u200D\uFEFF]/g,'').trim();
+}
+
+function statusColor(label){
+  const l = label.toLowerCase();
+  if(l.includes('not interested') || l.includes('closed')) return '#C1554D';
+  if(l.includes('no answer') || l.includes('call later') || l.includes('call today')) return '#6E7C93';
+  if(l.includes('proposal')) return '#4FA8A0';
+  if(l.includes('meeting')) return '#9BBF6E';
+  if(l.includes('deal') || l.includes('interested')) return '#D4A94F';
+  return '#8A93A6';
+}
+
+function parseSheetRows(rows){
+  let headerRowIdx = -1, mgrCol=-1, statusCol=-1, companyCol=-1;
+  for(let i=0;i<Math.min(rows.length,10);i++){
+    const row = (rows[i] || []).map(stripCell);
+    const idx = row.findIndex(c => c.toLowerCase() === 'account manager');
+    if(idx !== -1){
+      headerRowIdx = i; mgrCol = idx;
+      statusCol = row.findIndex(c => c.toLowerCase() === 'status');
+      companyCol = row.findIndex(c => c.toLowerCase() === 'company name');
+      break;
+    }
+  }
+  if(headerRowIdx === -1) throw new Error('Could not find an "Account Manager" column in the sheet.');
+
+  const headerRow = (rows[headerRowIdx] || []).map(stripCell);
+  const headerWidth = headerRow.length;
+  const dateColStart = (statusCol !== -1 ? statusCol : mgrCol) + 1;
+  const dateCols = [];
+  for(let c=dateColStart; c<headerRow.length; c++){
+    if(headerRow[c]) dateCols.push({ idx:c, label:headerRow[c] });
+  }
+
+  const byEmployee = {};
+  EMPLOYEES.forEach(e => byEmployee[e.id] = { byDate:{} });
+  dateCols.forEach(dc => {
+    EMPLOYEES.forEach(e => { byEmployee[e.id].byDate[dc.label] = {}; });
+  });
+
+  for(let r=headerRowIdx+1; r<rows.length; r++){
+    const raw = rows[r] || [];
+    const row = raw.length >= headerWidth ? raw : [...raw, ...Array(headerWidth - raw.length).fill('')];
+    if(row.every(c => !stripCell(c))) continue;
+    const mgrRaw = stripCell(row[mgrCol]).toLowerCase();
+    const emp = EMPLOYEES.find(e => e.label.toLowerCase() === mgrRaw);
+    if(!emp) continue;
+    dateCols.forEach(dc => {
+      const val = stripCell(row[dc.idx]);
+      if(val){
+        const bucket = byEmployee[emp.id].byDate[dc.label];
+        bucket[val] = (bucket[val]||0) + 1;
+      }
+    });
+  }
+
+  return {
+    dates: dateCols.map(d=>d.label),
+    byEmployee,
+    companyColFound: companyCol !== -1,
+  };
+}
+
+let sheetRefreshTimer = null;
+let sheetFetchInFlight = false;
+
+function renderSheetSetupHint(){
+  const hint = document.getElementById('sheetSetupHint');
+  const { spreadsheetId, apiKey } = GOOGLE_SHEETS_CONFIG;
+  if(spreadsheetId && apiKey){
+    hint.style.display = 'none';
+    return;
+  }
+  hint.style.display = 'block';
+  hint.innerHTML = [
+    'Configure live sync: set <code>GOOGLE_SHEETS_CONFIG</code> in index.html, or open this page with ',
+    '<code>?sheet=SPREADSHEET_ID&amp;key=API_KEY</code>. ',
+    'Share the sheet publicly (viewer) and restrict the API key to Sheets + your site URL in Google Cloud.',
+  ].join('');
+}
+
+async function sheetsApiGet(path, apiKey){
+  const sep = path.includes('?') ? '&' : '?';
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${path}${sep}key=${encodeURIComponent(apiKey)}`;
+  const res = await fetch(url);
+  const body = await res.json().catch(() => ({}));
+  if(!res.ok){
+    const msg = body.error?.message || res.statusText || 'Request failed';
+    throw new Error(msg);
+  }
+  return body;
+}
+
+async function fetchSpreadsheetTabs(spreadsheetId, apiKey, tabFilter){
+  const body = await sheetsApiGet(
+    `${encodeURIComponent(spreadsheetId)}?fields=sheets(properties(title,gridProperties(rowCount,columnCount)))`,
+    apiKey,
+  );
+  let tabs = (body.sheets || []).map(s => s.properties).filter(Boolean);
+  const filter = (tabFilter || '').trim();
+  if(filter){
+    const want = filter.toLowerCase();
+    tabs = tabs.filter(t => t.title.toLowerCase() === want);
+    if(!tabs.length) throw new Error(`No tab named "${filter}" in this spreadsheet.`);
+  }
+  return tabs;
+}
+
+async function fetchTabGrid(spreadsheetId, apiKey, tab){
+  const rows = Math.max(1, tab.gridProperties?.rowCount || 1);
+  const cols = Math.max(1, tab.gridProperties?.columnCount || 1);
+  const lastCol = columnIndexToA1(cols);
+  const range = `${quoteSheetTitle(tab.title)}!A1:${lastCol}${rows}`;
+  const rangeParam = encodeSheetsRange(range);
+  const body = await sheetsApiGet(
+    `${encodeURIComponent(spreadsheetId)}/values/${rangeParam}?majorDimension=ROWS`,
+    apiKey,
+  );
+  const values = body.values || [];
+  if(!values.length) return null;
+  return normalizeSheetRows(values, cols);
+}
+
+async function fetchFromGoogleSheet(){
+  const { spreadsheetId, apiKey, range } = GOOGLE_SHEETS_CONFIG;
+  if(!spreadsheetId || !apiKey){
+    throw new Error('Missing spreadsheet ID or API key.');
+  }
+
+  const tabs = await fetchSpreadsheetTabs(spreadsheetId, apiKey, range);
+  let merged = null;
+  let tabsUsed = 0;
+  const skipped = [];
+
+  for(const tab of tabs){
+    let grid;
+    try{
+      grid = await fetchTabGrid(spreadsheetId, apiKey, tab);
+    }catch(err){
+      skipped.push(`${tab.title} (${err.message})`);
+      continue;
+    }
+    if(!grid) continue;
+    if(!hasCallLedgerLayout(grid)) continue;
+    try{
+      const parsed = parseSheetRows(grid);
+      merged = mergeParsedDatasets(merged, parsed);
+      tabsUsed++;
+    }catch(err){
+      skipped.push(`${tab.title} (${err.message})`);
+    }
+  }
+
+  if(!merged){
+    const detail = skipped.length ? ` Issues: ${skipped.join('; ')}.` : '';
+    throw new Error('No tab with Account Manager + Status columns (same layout as CSV export).' + detail);
+  }
+
+  merged.tabsUsed = tabsUsed;
+  merged.tabsTotal = tabs.length;
+  merged.skippedTabs = skipped;
+  return merged;
+}
+
+async function refreshFromGoogleSheet({ silent } = {}){
+  if(sheetFetchInFlight) return;
+  const meta = document.getElementById('uploadMeta');
+  const btn = document.getElementById('refreshBtn');
+  const { spreadsheetId, apiKey } = GOOGLE_SHEETS_CONFIG;
+
+  renderSheetSetupHint();
+  if(!spreadsheetId || !apiKey){
+    meta.textContent = 'Sheet not configured';
+    meta.classList.remove('error');
+    return;
+  }
+
+  sheetFetchInFlight = true;
+  btn.disabled = true;
+  meta.classList.remove('error');
+  meta.textContent = silent ? 'Syncing…' : 'Loading from Google Sheets…';
+
+  try{
+    const parsed = await fetchFromGoogleSheet();
+    dataset = {
+      uploadedAt: Date.now(),
+      filename: 'Google Sheet (live)',
+      source: 'google-sheets',
+      spreadsheetId,
+      dates: parsed.dates,
+      byEmployee: parsed.byEmployee,
+      tabsUsed: parsed.tabsUsed,
+      tabsTotal: parsed.tabsTotal,
+    };
+    activeDateIdx = dataset.dates.length - 1;
+    teamDateIdx = dataset.dates.length - 1;
+    await saveDataset();
+    renderUploadMeta();
+    renderTeamOverview();
+    renderTeamRow();
+    renderPanel();
+  }catch(err){
+    meta.textContent = 'Sync failed: ' + err.message;
+    meta.classList.add('error');
+    if(!silent) console.error(err);
+  }finally{
+    sheetFetchInFlight = false;
+    btn.disabled = false;
+  }
+}
+
+function scheduleSheetAutoRefresh(){
+  if(sheetRefreshTimer){ clearInterval(sheetRefreshTimer); sheetRefreshTimer = null; }
+  const mins = GOOGLE_SHEETS_CONFIG.autoRefreshMinutes;
+  if(!mins || mins <= 0) return;
+  if(!GOOGLE_SHEETS_CONFIG.spreadsheetId || !GOOGLE_SHEETS_CONFIG.apiKey) return;
+  sheetRefreshTimer = setInterval(()=> refreshFromGoogleSheet({ silent:true }), mins * 60 * 1000);
+}
+
+function totalForDay(byDateObj, dateLabel){
+  const bucket = byDateObj[dateLabel] || {};
+  return Object.values(bucket).reduce((a,b)=>a+b,0);
+}
+function totalAllTime(byDateObj){
+  return Object.values(byDateObj).reduce((sum,bucket)=> sum + Object.values(bucket).reduce((a,b)=>a+b,0), 0);
+}
+function allTimeStatusTotals(byDateObj){
+  const totals = {};
+  Object.values(byDateObj).forEach(bucket=>{
+    Object.entries(bucket).forEach(([k,v])=>{ totals[k]=(totals[k]||0)+v; });
+  });
+  return totals;
+}
+
+function teamBucketForDay(dateLabel){
+  const combined = {};
+  EMPLOYEES.forEach(e=>{
+    const bucket = (dataset.byEmployee[e.id].byDate[dateLabel]) || {};
+    Object.entries(bucket).forEach(([k,v])=>{ combined[k]=(combined[k]||0)+v; });
+  });
+  return combined;
+}
+function teamTotalForDay(dateLabel){
+  return Object.values(teamBucketForDay(dateLabel)).reduce((a,b)=>a+b,0);
+}
+function teamAllTimeStatusTotals(){
+  const totals = {};
+  EMPLOYEES.forEach(e=>{
+    const eTotals = allTimeStatusTotals(dataset.byEmployee[e.id].byDate);
+    Object.entries(eTotals).forEach(([k,v])=>{ totals[k]=(totals[k]||0)+v; });
+  });
+  return totals;
+}
+function teamTotalAllTime(){
+  return EMPLOYEES.reduce((sum,e)=> sum + totalAllTime(dataset.byEmployee[e.id].byDate), 0);
+}
+
+async function loadStoredDataset(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY, true);
+    if(res && res.value){
+      dataset = JSON.parse(res.value);
+    }
+  }catch(e){ /* nothing stored yet */ }
+}
+async function saveDataset(){
+  try{
+    await window.storage.set(STORAGE_KEY, JSON.stringify(dataset), true);
+  }catch(e){ console.error('save failed', e); }
+}
+
+async function loadPartners(){
+  try{
+    const res = await window.storage.get(PARTNERS_KEY, true);
+    if(res && res.value){ partners = JSON.parse(res.value); }
+  }catch(e){ /* nothing stored yet */ }
+}
+async function savePartners(){
+  try{
+    await window.storage.set(PARTNERS_KEY, JSON.stringify(partners), true);
+  }catch(e){ console.error('save failed', e); }
+}
+
+function renderPartners(){
+  const list = document.getElementById('partnerList');
+  const summary = document.getElementById('partnersSummary');
+  const totalAmount = partners.reduce((s,p)=>s+(p.amount||0),0);
+  summary.innerHTML = `<b>${partners.length}</b> confirmed &nbsp;·&nbsp; <b>EGP ${totalAmount.toLocaleString()}</b> total`;
+
+  if(!partners.length){
+    list.innerHTML = `<div class="partners-empty">No partners confirmed yet — add the first one above.</div>`;
+    return;
+  }
+  const sorted = [...partners].sort((a,b)=>b.addedAt-a.addedAt);
+  list.innerHTML = sorted.map(p=>{
+    const emp = EMPLOYEES.find(e=>e.id===p.employeeId) || { label:p.employeeId, color:'#8A93A6' };
+    const tier = p.tier || 'Silver';
+    return `
+      <div class="partner-row">
+        <div class="p-name">${p.name}</div>
+        <span class="p-tier tier-${tier.toLowerCase()}">${tier}</span>
+        <div class="p-emp" style="background:${emp.color}22; color:${emp.color}; border:1px solid ${emp.color}55;">${emp.label}</div>
+        <div class="p-amount">EGP ${(p.amount||0).toLocaleString()}</div>
+        <button class="p-remove" data-id="${p.id}">×</button>
+      </div>
+    `;
+  }).join('');
+
+  list.querySelectorAll('.p-remove').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      partners = partners.filter(p=>p.id !== btn.dataset.id);
+      await savePartners();
+      renderPartners();
+      renderMoneyBanner();
+      renderTeamRow();
+      renderPanel();
+    });
+  });
+}
+
+function moneyByEmployee(empId){
+  return partners.filter(p=>p.employeeId===empId).reduce((s,p)=>s+(p.amount||0),0);
+}
+function moneyTotal(){
+  return partners.reduce((s,p)=>s+(p.amount||0),0);
+}
+
+function renderMoneyBanner(){
+  const banner = document.getElementById('moneyBanner');
+  const total = moneyTotal();
+  const breakdown = EMPLOYEES.map(e=>`<span><b>${e.label}</b>: EGP ${moneyByEmployee(e.id).toLocaleString()}</span>`).join('');
+  banner.innerHTML = `
+    <div>
+      <div class="mb-label">Total money collected <span style="opacity:.7;">(from confirmed partners)</span></div>
+      <div class="mb-total">EGP ${total.toLocaleString()}</div>
+    </div>
+    <div class="money-breakdown">${breakdown}</div>
+  `;
+}
+
+function renderUploadMeta(){
+  const meta = document.getElementById('uploadMeta');
+  if(!dataset){
+    if(GOOGLE_SHEETS_CONFIG.spreadsheetId && GOOGLE_SHEETS_CONFIG.apiKey){
+      meta.textContent = 'Waiting for first sync…';
+    }else{
+      meta.textContent = 'Sheet not configured';
+    }
+    meta.classList.remove('error');
+    return;
+  }
+  const when = new Date(dataset.uploadedAt);
+  const refreshNote = GOOGLE_SHEETS_CONFIG.autoRefreshMinutes > 0
+    ? ` · auto-refresh every ${GOOGLE_SHEETS_CONFIG.autoRefreshMinutes}m`
+    : '';
+  const tabsNote = dataset.tabsUsed != null
+    ? ` · ${dataset.tabsUsed} tab${dataset.tabsUsed === 1 ? '' : 's'}`
+    : '';
+  meta.textContent = `${dataset.filename} — synced ${when.toLocaleString()} — ${dataset.dates.length} day columns${tabsNote}${refreshNote}`;
+  meta.classList.remove('error');
+}
+
+function buildSparklinePoints(values, width, height, pad){
+  const max = Math.max(...values, 1);
+  const n = values.length;
+  return values.map((v,i)=>{
+    const x = n<=1 ? width/2 : pad + i*(width-2*pad)/(n-1);
+    const y = height - pad - (v/max)*(height-2*pad);
+    return { x, y, v };
+  });
+}
+
+function renderTeamOverview(){
+  const panel = document.getElementById('teamOverviewPanel');
+  if(!dataset){
+    panel.innerHTML = `<div class="empty"><div class="big">No calls loaded yet</div>Refresh from Google Sheet above to see whole-team totals.</div>`;
+    return;
+  }
+  if(teamDateIdx >= dataset.dates.length) teamDateIdx = dataset.dates.length-1;
+  if(teamDateIdx < 0) teamDateIdx = 0;
+  const activeDate = dataset.dates[teamDateIdx];
+
+  const dayBucket = teamBucketForDay(activeDate);
+  const dayTotal = Object.values(dayBucket).reduce((a,b)=>a+b,0);
+  const dayEntries = Object.entries(dayBucket).sort((a,b)=>b[1]-a[1]);
+
+  const dateTabsHtml = dataset.dates.map((d,i)=>`<button class="${i===teamDateIdx?'active':''}" data-idx="${i}">${d}</button>`).join('');
+
+  const statusCardsHtml = dayEntries.length ? dayEntries.map(([label,count])=>`
+    <div class="status-card" style="--dot-color:${statusColor(label)}">
+      <div class="sc-count">${count}</div>
+      <div class="sc-label">${label}</div>
+    </div>
+  `).join('') : `<div style="color:var(--text-dim); font-size:13px;">No calls logged by the team on ${activeDate}.</div>`;
+
+  const dayTotals = dataset.dates.map(d => teamTotalForDay(d));
+  const W = 600, H = 90, PAD = 10;
+  const pts = buildSparklinePoints(dayTotals, W, H, PAD);
+  const linePoints = pts.map(p=>`${p.x},${p.y}`).join(' ');
+  const areaPoints = `${PAD},${H-PAD} ` + linePoints + ` ${W-PAD},${H-PAD}`;
+  const dots = pts.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="${i===teamDateIdx?5:3}" fill="${i===teamDateIdx?'#D4A94F':'#4FA8A0'}"><title>${dataset.dates[i]}: ${p.v} calls</title></circle>`).join('');
+
+  panel.innerHTML = `
+    <div class="team-hero-top">
+      <div>
+        <div class="team-hero-eyebrow">Whole team pulse</div>
+        <div class="team-hero-number">${teamTotalAllTime()}<span>calls all-time</span></div>
+      </div>
+      <div class="team-hero-today">
+        <div class="n">${dayTotal}</div>
+        <div class="l">${activeDate}</div>
+      </div>
+    </div>
+
+    <div class="pill-tabs" id="teamDateTabs">${dateTabsHtml}</div>
+
+    <div class="status-grid">${statusCardsHtml}</div>
+
+    <div class="spark-wrap">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <polygon points="${areaPoints}" fill="url(#sparkGrad)" opacity="0.5"/>
+        <polyline points="${linePoints}" fill="none" stroke="#4FA8A0" stroke-width="2"/>
+        ${dots}
+        <defs>
+          <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#4FA8A0" stop-opacity="0.35"/>
+            <stop offset="100%" stop-color="#4FA8A0" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <div class="spark-labels"><span>${dataset.dates[0]}</span><span>calls / day across the sheet</span><span>${dataset.dates[dataset.dates.length-1]}</span></div>
+    </div>
+
+    <div class="pill-tabs" style="margin-top:16px; margin-bottom:0;">
+      ${Object.entries(teamAllTimeStatusTotals()).sort((a,b)=>b[1]-a[1]).map(([label,count])=>
+        `<button style="cursor:default; border-color:${statusColor(label)}66;" disabled>${label} · ${count}</button>`
+      ).join('') || ''}
+    </div>
+  `;
+
+  panel.querySelectorAll('#teamDateTabs button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ teamDateIdx = parseInt(btn.dataset.idx,10); renderTeamOverview(); });
+    if(btn.classList.contains('active')) btn.scrollIntoView({inline:'center', block:'nearest'});
+  });
+}
+
+function renderTeamRow(){
+  const row = document.getElementById('teamRow');
+  row.innerHTML = EMPLOYEES.map(emp=>{
+    const byDateObj = dataset ? dataset.byEmployee[emp.id].byDate : {};
+    const total = dataset ? totalAllTime(byDateObj) : 0;
+    const lastDate = dataset ? dataset.dates[dataset.dates.length-1] : null;
+    const todayCount = lastDate ? totalForDay(byDateObj, lastDate) : 0;
+    return `
+      <button class="chip ${emp.id===activeEmployee?'active':''}" data-emp="${emp.id}">
+        <div class="avatar" style="background:${emp.color}22; color:${emp.color}; border:1px solid ${emp.color}55;">${emp.label[0]}</div>
+        <div class="name">${emp.label}</div>
+        <div class="stat-row">
+          <div><div class="stat-num">${total}</div><div class="stat-label">All-time calls</div></div>
+          <div><div class="stat-num" style="color:${emp.color}">${todayCount}</div><div class="stat-label">${lastDate||'latest'}</div></div>
+        </div>
+        <div class="stat-row">
+          <div><div class="stat-num" style="color:var(--gold); font-size:15px;">EGP ${moneyByEmployee(emp.id).toLocaleString()}</div><div class="stat-label">Money collected</div></div>
+        </div>
+      </button>
+    `;
+  }).join('');
+  row.querySelectorAll('.chip').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ activeEmployee = btn.dataset.emp; renderPanel(); renderTeamRow(); });
+  });
+}
+
+function renderPanel(){
+  const panel = document.getElementById('panel');
+  const emp = EMPLOYEES.find(e=>e.id===activeEmployee);
+
+  if(!dataset){
+    panel.innerHTML = `
+      <div class="who-total">${emp.label}</div>
+      <div class="money-section">
+        <div class="m-label">Money collected by ${emp.label} (EGP) — from confirmed partners</div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:600; color:var(--gold);">EGP ${moneyByEmployee(emp.id).toLocaleString()}</div>
+      </div>
+      <div class="empty"><div class="big">No calls loaded yet</div>Refresh from Google Sheet above to see call stats.</div>
+    `;
+    return;
+  }
+
+  const byDateObj = dataset.byEmployee[emp.id].byDate;
+  if(activeDateIdx >= dataset.dates.length) activeDateIdx = dataset.dates.length-1;
+  if(activeDateIdx < 0) activeDateIdx = 0;
+  const activeDate = dataset.dates[activeDateIdx];
+
+  const dayBucket = byDateObj[activeDate] || {};
+  const dayTotal = Object.values(dayBucket).reduce((a,b)=>a+b,0);
+  const maxDayStatus = Math.max(...Object.values(dayBucket), 1);
+  const dayEntries = Object.entries(dayBucket).sort((a,b)=>b[1]-a[1]);
+
+  const dateTabsHtml = dataset.dates.map((d,i)=>`<button class="${i===activeDateIdx?'active':''}" data-idx="${i}">${d}</button>`).join('');
+
+  const dayBarsHtml = dayEntries.length ? dayEntries.map(([label,count])=>{
+    const color = statusColor(label);
+    const pct = Math.max(6, (count/maxDayStatus)*100);
+    return `
+      <div class="status-bar-row">
+        <div class="label">${label}</div>
+        <div class="track"><div class="fill" style="width:${pct}%; background:${color};"></div></div>
+        <div class="count">${count}</div>
+      </div>`;
+  }).join('') : `<div style="color:var(--text-dim); font-size:13px;">No calls logged for ${emp.label} on ${activeDate}.</div>`;
+
+  const dayTotals = dataset.dates.map(d => totalForDay(byDateObj, d));
+  const maxDay = Math.max(...dayTotals, 1);
+  const trendHtml = dataset.dates.map((d,i)=>{
+    const h = Math.max(3, (dayTotals[i]/maxDay)*100);
+    return `<div class="trend-col"><div class="trend-bar ${i===activeDateIdx?'sel':''}" style="height:${h}%;" title="${d}: ${dayTotals[i]} calls"></div><div class="trend-day">${d}</div></div>`;
+  }).join('');
+
+  const allTimeTotals = Object.entries(allTimeStatusTotals(byDateObj)).sort((a,b)=>b[1]-a[1]);
+  const totalsRows = allTimeTotals.map(([label,count])=>`
+    <tr><td style="color:${statusColor(label)}">${label}</td><td>${count}</td></tr>
+  `).join('') || `<tr><td colspan="2" style="color:var(--text-dim);">No data for ${emp.label} yet.</td></tr>`;
+
+  panel.innerHTML = `
+    <div class="who-total">${emp.label} — ${dayTotal} call${dayTotal===1?'':'s'} on ${activeDate}</div>
+
+    <div class="money-section">
+      <div class="m-label">Money collected by ${emp.label} (EGP) — from confirmed partners</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:600; color:var(--gold);">EGP ${moneyByEmployee(emp.id).toLocaleString()}</div>
+    </div>
+
+    <div class="date-tabs" id="dateTabs">${dateTabsHtml}</div>
+
+    <div class="section-title">Status breakdown — ${activeDate}</div>
+    <div class="status-bars">${dayBarsHtml}</div>
+
+    <div class="section-title">Calls per day</div>
+    <div class="trend">${trendHtml}</div>
+
+    <div class="section-title">All-time totals</div>
+    <table class="totals"><thead><tr><th>Status</th><th>Count</th></tr></thead><tbody>${totalsRows}</tbody></table>
+  `;
+
+  panel.querySelectorAll('#dateTabs button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ activeDateIdx = parseInt(btn.dataset.idx,10); renderPanel(); });
+    if(btn.classList.contains('active')) btn.scrollIntoView({inline:'center', block:'nearest'});
+  });
+}
+
+document.getElementById('partnerAddBtn').addEventListener('click', async ()=>{
+  const nameInput = document.getElementById('partnerNameInput');
+  const empSelect = document.getElementById('partnerEmpSelect');
+  const amountInput = document.getElementById('partnerAmountInput');
+  const tierSelect = document.getElementById('partnerTierSelect');
+  const name = nameInput.value.trim();
+  if(!name){ nameInput.focus(); return; }
+  const amount = Math.max(0, parseFloat(amountInput.value) || 0);
+  partners.push({
+    id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+    name,
+    employeeId: empSelect.value,
+    amount,
+    tier: tierSelect.value,
+    addedAt: Date.now(),
+  });
+  await savePartners();
+  renderPartners();
+  renderMoneyBanner();
+  renderTeamRow();
+  renderPanel();
+  nameInput.value = '';
+  amountInput.value = '';
+  nameInput.focus();
+});
+
+document.getElementById('refreshBtn').addEventListener('click', ()=> refreshFromGoogleSheet());
+
+(async function init(){
+  await Promise.all([loadStoredDataset(), loadPartners()]);
+  renderSheetSetupHint();
+  renderUploadMeta();
+  renderMoneyBanner();
+  renderPartners();
+  renderTeamOverview();
+  renderTeamRow();
+  renderPanel();
+  scheduleSheetAutoRefresh();
+  if(GOOGLE_SHEETS_CONFIG.spreadsheetId && GOOGLE_SHEETS_CONFIG.apiKey){
+    await refreshFromGoogleSheet({ silent:true });
+  }
+})();
+</script>
+</body>
+</html>
