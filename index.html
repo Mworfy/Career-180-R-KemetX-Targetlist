@@ -201,6 +201,10 @@
   .spark-wrap{ background:rgba(255,255,255,0.03); border:1px solid var(--line); border-radius:14px; padding:16px 18px 8px; }
   .spark-wrap svg{ width:100%; height:90px; display:block; }
   .spark-labels{ display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--text-dim); margin-top:6px; }
+
+  .team-hero-newleads{ text-align:right; }
+  .team-hero-newleads .n{ font-family:'IBM Plex Mono',monospace; font-size:26px; font-weight:600; color:var(--teal); }
+  .team-hero-newleads .l{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; }
 </style>
 </head>
 <body>
@@ -308,6 +312,12 @@ function mergeParsedDatasets(into, add){
   });
   into.dates = dates;
   into.companyColFound = into.companyColFound || add.companyColFound;
+  if(!into.newLeadsByEmployee) into.newLeadsByEmployee = {};
+  EMPLOYEES.forEach(e => {
+    if(!into.newLeadsByEmployee[e.id]) into.newLeadsByEmployee[e.id] = [];
+    const src = add.newLeadsByEmployee?.[e.id] || [];
+    into.newLeadsByEmployee[e.id] = into.newLeadsByEmployee[e.id].concat(src);
+  });
   return into;
 }
 
@@ -344,7 +354,7 @@ function statusColor(label){
 }
 
 function parseSheetRows(rows){
-  let headerRowIdx = -1, mgrCol=-1, statusCol=-1, companyCol=-1;
+  let headerRowIdx = -1, mgrCol=-1, statusCol=-1, companyCol=-1, nameCol=-1;
   for(let i=0;i<Math.min(rows.length,10);i++){
     const row = (rows[i] || []).map(stripCell);
     const idx = row.findIndex(c => c.toLowerCase() === 'account manager');
@@ -352,6 +362,7 @@ function parseSheetRows(rows){
       headerRowIdx = i; mgrCol = idx;
       statusCol = row.findIndex(c => c.toLowerCase() === 'status');
       companyCol = row.findIndex(c => c.toLowerCase() === 'company name');
+      nameCol = row.findIndex(c => c.toLowerCase() === 'name');
       break;
     }
   }
@@ -366,7 +377,11 @@ function parseSheetRows(rows){
   }
 
   const byEmployee = {};
-  EMPLOYEES.forEach(e => byEmployee[e.id] = { byDate:{} });
+  const newLeadsByEmployee = {};
+  EMPLOYEES.forEach(e => {
+    byEmployee[e.id] = { byDate:{} };
+    newLeadsByEmployee[e.id] = [];
+  });
   dateCols.forEach(dc => {
     EMPLOYEES.forEach(e => { byEmployee[e.id].byDate[dc.label] = {}; });
   });
@@ -378,20 +393,38 @@ function parseSheetRows(rows){
     const mgrRaw = stripCell(row[mgrCol]).toLowerCase();
     const emp = EMPLOYEES.find(e => e.label.toLowerCase() === mgrRaw);
     if(!emp) continue;
+
+    let hasActivity = statusCol !== -1 && !!stripCell(row[statusCol]);
     dateCols.forEach(dc => {
       const val = stripCell(row[dc.idx]);
       if(val){
+        hasActivity = true;
         const bucket = byEmployee[emp.id].byDate[dc.label];
         bucket[val] = (bucket[val]||0) + 1;
       }
     });
+
+    if(!hasActivity){
+      newLeadsByEmployee[emp.id].push({
+        company: companyCol !== -1 ? stripCell(row[companyCol]) : '',
+        contact: nameCol !== -1 ? stripCell(row[nameCol]) : '',
+      });
+    }
   }
 
   return {
     dates: dateCols.map(d=>d.label),
     byEmployee,
+    newLeadsByEmployee,
     companyColFound: companyCol !== -1,
   };
+}
+
+function newLeadsForEmployee(empId){
+  return (dataset?.newLeadsByEmployee && dataset.newLeadsByEmployee[empId]) || [];
+}
+function newLeadsTotal(){
+  return EMPLOYEES.reduce((sum, e) => sum + newLeadsForEmployee(e.id).length, 0);
 }
 
 let sheetRefreshTimer = null;
@@ -475,6 +508,7 @@ async function refreshFromGoogleSheet({ silent } = {}){
       source: 'google-sheets',
       dates: parsed.dates,
       byEmployee: parsed.byEmployee,
+      newLeadsByEmployee: parsed.newLeadsByEmployee,
       tabsUsed: parsed.tabsUsed,
       tabsTotal: parsed.tabsTotal,
     };
@@ -694,6 +728,10 @@ function renderTeamOverview(){
         <div class="n">${dayTotal}</div>
         <div class="l">${activeDate}</div>
       </div>
+      <div class="team-hero-newleads">
+        <div class="n">${newLeadsTotal()}</div>
+        <div class="l">New leads</div>
+      </div>
     </div>
 
     <div class="pill-tabs" id="teamDateTabs">${dateTabsHtml}</div>
@@ -735,6 +773,7 @@ function renderTeamRow(){
     const total = dataset ? totalAllTime(byDateObj) : 0;
     const lastDate = dataset ? dataset.dates[dataset.dates.length-1] : null;
     const todayCount = lastDate ? totalForDay(byDateObj, lastDate) : 0;
+    const newLeadsCount = dataset ? newLeadsForEmployee(emp.id).length : 0;
     return `
       <button class="chip ${emp.id===activeEmployee?'active':''}" data-emp="${emp.id}">
         <div class="avatar" style="background:${emp.color}22; color:${emp.color}; border:1px solid ${emp.color}55;">${emp.label[0]}</div>
@@ -745,6 +784,7 @@ function renderTeamRow(){
         </div>
         <div class="stat-row">
           <div><div class="stat-num" style="color:var(--gold); font-size:15px;">EGP ${moneyByEmployee(emp.id).toLocaleString()}</div><div class="stat-label">Money collected</div></div>
+          <div><div class="stat-num" style="color:var(--teal); font-size:15px;">${newLeadsCount}</div><div class="stat-label">New leads</div></div>
         </div>
       </button>
     `;
