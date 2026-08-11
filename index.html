@@ -232,7 +232,7 @@
       <select id="partnerEmpSelect">
         <option value="roba">Roba</option>
         <option value="sohaila">Sohaila</option>
-        <option value="aliaa">Aliaa</option>
+        <option value="fatma">Fatma</option>
         <option value="nada">Nada</option>
       </select>
       <input type="number" id="partnerAmountInput" placeholder="Amount (EGP)" min="0" step="1">
@@ -261,7 +261,7 @@
 const EMPLOYEES = [
   { id:'roba', label:'Roba', color:'#4FA8A0' },
   { id:'sohaila', label:'Sohaila', color:'#D4A94F' },
-  { id:'aliaa', label:'Aliaa', color:'#7B9FD4' },
+  { id:'fatma', label:'Fatma', color:'#7B9FD4', aliases:['Aliaa'] },
   { id:'nada', label:'Nada', color:'#C1554D' },
 ];
 const STORAGE_KEY = 'sponsorship-upload';
@@ -356,13 +356,22 @@ function statusColor(label){
   return '#8A93A6';
 }
 
+function findEmployee(mgrRaw){
+  const m = mgrRaw.toLowerCase();
+  return EMPLOYEES.find(e =>
+    e.label.toLowerCase() === m ||
+    (e.aliases || []).some(a => a.toLowerCase() === m)
+  );
+}
+
 function parseSheetRows(rows){
-  let headerRowIdx = -1, mgrCol=-1, statusCol=-1, companyCol=-1, nameCol=-1;
+  let headerRowIdx = -1, leadsCol=-1, mgrCol=-1, statusCol=-1, companyCol=-1, nameCol=-1;
   for(let i=0;i<Math.min(rows.length,10);i++){
     const row = (rows[i] || []).map(stripCell);
     const idx = row.findIndex(c => c.toLowerCase() === 'account manager');
     if(idx !== -1){
       headerRowIdx = i; mgrCol = idx;
+      leadsCol = row.findIndex(c => c.toLowerCase() === 'leads');
       statusCol = row.findIndex(c => c.toLowerCase() === 'status');
       companyCol = row.findIndex(c => c.toLowerCase() === 'company name');
       nameCol = row.findIndex(c => c.toLowerCase() === 'name');
@@ -373,7 +382,7 @@ function parseSheetRows(rows){
 
   const headerRow = (rows[headerRowIdx] || []).map(stripCell);
   const headerWidth = headerRow.length;
-  const dateColStart = Math.max(mgrCol, statusCol, companyCol, nameCol) + 1;
+  const dateColStart = Math.max(leadsCol, mgrCol, statusCol, companyCol, nameCol) + 1;
   const dateCols = [];
   for(let c=dateColStart; c<headerRow.length; c++){
     if(headerRow[c]) dateCols.push({ idx:c, label:headerRow[c] });
@@ -394,20 +403,19 @@ function parseSheetRows(rows){
     const row = raw.length >= headerWidth ? raw : [...raw, ...Array(headerWidth - raw.length).fill('')];
     if(row.every(c => !stripCell(c))) continue;
     const mgrRaw = stripCell(row[mgrCol]).toLowerCase();
-    const emp = EMPLOYEES.find(e => e.label.toLowerCase() === mgrRaw);
+    const emp = findEmployee(mgrRaw);
     if(!emp) continue;
 
-    let hasActivity = statusCol !== -1 && !!stripCell(row[statusCol]);
     dateCols.forEach(dc => {
       const val = stripCell(row[dc.idx]);
       if(val){
-        hasActivity = true;
         const bucket = byEmployee[emp.id].byDate[dc.label];
         bucket[val] = (bucket[val]||0) + 1;
       }
     });
 
-    if(!hasActivity){
+    const leadType = leadsCol !== -1 ? stripCell(row[leadsCol]).toLowerCase() : '';
+    if(leadType === 'new lead'){
       newLeadsByEmployee[emp.id].push({
         company: companyCol !== -1 ? stripCell(row[companyCol]) : '',
         contact: nameCol !== -1 ? stripCell(row[nameCol]) : '',
