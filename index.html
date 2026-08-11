@@ -36,7 +36,8 @@
   .upload-meta.error{ color:var(--brick); }
   #sheetSetupHint code{ background:var(--surface-2); padding:2px 6px; border-radius:4px; font-size:11px; }
 
-  .team-row{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:24px; }
+  .team-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:24px; }
+  @media (max-width:900px){ .team-row{grid-template-columns:repeat(2,1fr);} }
   @media (max-width:640px){ .team-row{grid-template-columns:1fr;} }
   .chip{
     background:var(--surface); border:1px solid var(--line); border-radius:14px;
@@ -231,6 +232,7 @@
       <select id="partnerEmpSelect">
         <option value="roba">Roba</option>
         <option value="sohaila">Sohaila</option>
+        <option value="aliaa">Aliaa</option>
         <option value="nada">Nada</option>
       </select>
       <input type="number" id="partnerAmountInput" placeholder="Amount (EGP)" min="0" step="1">
@@ -259,6 +261,7 @@
 const EMPLOYEES = [
   { id:'roba', label:'Roba', color:'#4FA8A0' },
   { id:'sohaila', label:'Sohaila', color:'#D4A94F' },
+  { id:'aliaa', label:'Aliaa', color:'#7B9FD4' },
   { id:'nada', label:'Nada', color:'#C1554D' },
 ];
 const STORAGE_KEY = 'sponsorship-upload';
@@ -370,7 +373,7 @@ function parseSheetRows(rows){
 
   const headerRow = (rows[headerRowIdx] || []).map(stripCell);
   const headerWidth = headerRow.length;
-  const dateColStart = (statusCol !== -1 ? statusCol : mgrCol) + 1;
+  const dateColStart = Math.max(mgrCol, statusCol, companyCol, nameCol) + 1;
   const dateCols = [];
   for(let c=dateColStart; c<headerRow.length; c++){
     if(headerRow[c]) dateCols.push({ idx:c, label:headerRow[c] });
