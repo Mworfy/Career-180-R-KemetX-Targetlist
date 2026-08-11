@@ -50,6 +50,20 @@
   .chip .stat-row{ display:flex; justify-content:space-between; margin-top:8px; }
   .chip .stat-num{ font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:600; }
   .chip .stat-label{ font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; }
+  .chip .newbie-badge{
+    display:inline-block; margin-left:6px; font-size:9px; font-family:'IBM Plex Mono',monospace;
+    text-transform:uppercase; letter-spacing:.06em; color:var(--teal); border:1px solid var(--teal);
+    border-radius:20px; padding:2px 7px; vertical-align:middle;
+  }
+
+  .new-leads-list{ display:flex; flex-direction:column; gap:6px; margin-bottom:28px; }
+  .new-lead-row{
+    display:flex; justify-content:space-between; gap:12px; background:var(--surface-2);
+    border:1px solid var(--line); border-radius:10px; padding:10px 14px; font-size:13px;
+  }
+  .new-lead-row .nl-company{ font-weight:600; }
+  .new-lead-row .nl-contact{ color:var(--text-dim); font-size:12px; }
+  .new-leads-empty{ color:var(--text-dim); font-size:13px; padding:8px 0 28px; }
 
   .panel{ background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:22px; }
   .empty{ text-align:center; padding:50px 20px; color:var(--text-dim); }
@@ -261,7 +275,7 @@
 const EMPLOYEES = [
   { id:'roba', label:'Roba', color:'#4FA8A0' },
   { id:'sohaila', label:'Sohaila', color:'#D4A94F' },
-  { id:'fatma', label:'Fatma', color:'#7B9FD4', aliases:['Aliaa'] },
+  { id:'fatma', label:'Fatma', color:'#7B9FD4', newbie:true },
   { id:'nada', label:'Nada', color:'#C1554D' },
 ];
 const STORAGE_KEY = 'sponsorship-upload';
@@ -358,10 +372,22 @@ function statusColor(label){
 
 function findEmployee(mgrRaw){
   const m = mgrRaw.toLowerCase();
-  return EMPLOYEES.find(e =>
-    e.label.toLowerCase() === m ||
-    (e.aliases || []).some(a => a.toLowerCase() === m)
-  );
+  return EMPLOYEES.find(e => e.label.toLowerCase() === m);
+}
+
+function ensureEmployeeStructures(data){
+  if(!data) return data;
+  if(!data.byEmployee) data.byEmployee = {};
+  if(!data.newLeadsByEmployee) data.newLeadsByEmployee = {};
+  const dates = data.dates || [];
+  EMPLOYEES.forEach(e => {
+    if(!data.byEmployee[e.id]) data.byEmployee[e.id] = { byDate:{} };
+    dates.forEach(d => {
+      if(!data.byEmployee[e.id].byDate[d]) data.byEmployee[e.id].byDate[d] = {};
+    });
+    if(!data.newLeadsByEmployee[e.id]) data.newLeadsByEmployee[e.id] = [];
+  });
+  return data;
 }
 
 function parseSheetRows(rows){
@@ -513,7 +539,7 @@ async function refreshFromGoogleSheet({ silent } = {}){
 
   try{
     const parsed = await fetchFromGoogleSheet();
-    dataset = {
+    dataset = ensureEmployeeStructures({
       uploadedAt: Date.now(),
       filename: 'Google Sheet (live)',
       source: 'google-sheets',
@@ -522,7 +548,7 @@ async function refreshFromGoogleSheet({ silent } = {}){
       newLeadsByEmployee: parsed.newLeadsByEmployee,
       tabsUsed: parsed.tabsUsed,
       tabsTotal: parsed.tabsTotal,
-    };
+    });
     activeDateIdx = dataset.dates.length - 1;
     teamDateIdx = dataset.dates.length - 1;
     await saveDataset();
@@ -590,7 +616,7 @@ async function loadStoredDataset(){
   try{
     const res = await window.storage.get(STORAGE_KEY, true);
     if(res && res.value){
-      dataset = JSON.parse(res.value);
+      dataset = ensureEmployeeStructures(JSON.parse(res.value));
     }
   }catch(e){ /* nothing stored yet */ }
 }
@@ -780,7 +806,7 @@ function renderTeamOverview(){
 function renderTeamRow(){
   const row = document.getElementById('teamRow');
   row.innerHTML = EMPLOYEES.map(emp=>{
-    const byDateObj = dataset ? dataset.byEmployee[emp.id].byDate : {};
+    const byDateObj = dataset ? (dataset.byEmployee[emp.id] || { byDate:{} }).byDate : {};
     const total = dataset ? totalAllTime(byDateObj) : 0;
     const lastDate = dataset ? dataset.dates[dataset.dates.length-1] : null;
     const todayCount = lastDate ? totalForDay(byDateObj, lastDate) : 0;
@@ -788,7 +814,7 @@ function renderTeamRow(){
     return `
       <button class="chip ${emp.id===activeEmployee?'active':''}" data-emp="${emp.id}">
         <div class="avatar" style="background:${emp.color}22; color:${emp.color}; border:1px solid ${emp.color}55;">${emp.label[0]}</div>
-        <div class="name">${emp.label}</div>
+        <div class="name">${emp.label}${emp.newbie ? '<span class="newbie-badge">New</span>' : ''}</div>
         <div class="stat-row">
           <div><div class="stat-num">${total}</div><div class="stat-label">All-time calls</div></div>
           <div><div class="stat-num" style="color:${emp.color}">${todayCount}</div><div class="stat-label">${lastDate||'latest'}</div></div>
@@ -821,7 +847,8 @@ function renderPanel(){
     return;
   }
 
-  const byDateObj = dataset.byEmployee[emp.id].byDate;
+  const byDateObj = (dataset.byEmployee[emp.id] || { byDate:{} }).byDate;
+  const empNewLeads = newLeadsForEmployee(emp.id);
   if(activeDateIdx >= dataset.dates.length) activeDateIdx = dataset.dates.length-1;
   if(activeDateIdx < 0) activeDateIdx = 0;
   const activeDate = dataset.dates[activeDateIdx];
@@ -856,6 +883,13 @@ function renderPanel(){
     <tr><td style="color:${statusColor(label)}">${label}</td><td>${count}</td></tr>
   `).join('') || `<tr><td colspan="2" style="color:var(--text-dim);">No data for ${emp.label} yet.</td></tr>`;
 
+  const newLeadsHtml = empNewLeads.length ? empNewLeads.map(l => `
+    <div class="new-lead-row">
+      <div class="nl-company">${l.company || '—'}</div>
+      <div class="nl-contact">${l.contact || ''}</div>
+    </div>
+  `).join('') : `<div class="new-leads-empty">${emp.newbie ? 'No accounts assigned yet — assign leads to Fatma in column G and mark column A as "New Lead".' : `No new leads assigned to ${emp.label} yet.`}</div>`;
+
   panel.innerHTML = `
     <div class="who-total">${emp.label} — ${dayTotal} call${dayTotal===1?'':'s'} on ${activeDate}</div>
 
@@ -863,6 +897,9 @@ function renderPanel(){
       <div class="m-label">Money collected by ${emp.label} (EGP) — from confirmed partners</div>
       <div style="font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:600; color:var(--gold);">EGP ${moneyByEmployee(emp.id).toLocaleString()}</div>
     </div>
+
+    <div class="section-title">New leads — ${empNewLeads.length} assigned</div>
+    <div class="new-leads-list">${newLeadsHtml}</div>
 
     <div class="date-tabs" id="dateTabs">${dateTabsHtml}</div>
 
