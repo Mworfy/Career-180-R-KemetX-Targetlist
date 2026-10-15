@@ -14,14 +14,6 @@ function columnIndexToA1(colOneBased) {
   return s;
 }
 
-function encodeSheetsRange(range) {
-  if (!range.includes('!')) return encodeURIComponent(range);
-  const bang = range.indexOf('!');
-  const sheet = range.slice(0, bang);
-  const cells = range.slice(bang + 1);
-  return encodeURIComponent(`${quoteSheetTitle(sheet)}!${cells}`);
-}
-
 function normalizeSheetRows(values, columnCount) {
   const width = Math.max(columnCount || 0, ...values.map((r) => (r && r.length) || 0));
   return values.map((r) => {
@@ -62,8 +54,8 @@ async function fetchTabGrid(spreadsheetId, apiKey, tab) {
   const rows = Math.max(1, tab.gridProperties?.rowCount || 1);
   const cols = Math.max(1, tab.gridProperties?.columnCount || 1);
   const lastCol = columnIndexToA1(cols);
-  const range = `${quoteSheetTitle(tab.title)}!A1:${lastCol}${rows}`;
-  const rangeParam = encodeSheetsRange(range);
+  // Title is quoted exactly once here; just URL-encode the full range.
+  const rangeParam = encodeURIComponent(`${quoteSheetTitle(tab.title)}!A1:${lastCol}${rows}`);
   const body = await sheetsApiGet(
     `${encodeURIComponent(spreadsheetId)}/values/${rangeParam}?majorDimension=ROWS`,
     apiKey,
